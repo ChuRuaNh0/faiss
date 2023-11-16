@@ -148,6 +148,32 @@ struct IndexIVFInterface : Level1Quantizer {
             const IVFSearchParameters* params = nullptr,
             IndexIVFStats* stats = nullptr) const = 0;
 
+    virtual void boundary_search_preassigned(
+            idx_t nx,
+            const float* x,
+            float lower,
+            float upper,
+            const idx_t* keys,
+            const float* coarse_dis,
+            RangeSearchResult* result,
+            bool store_pairs = false,
+            const IVFSearchParameters* params = nullptr,
+            IndexIVFStats* stats = nullptr) const = 0;
+
+    virtual void boundary_search_preassigned_v1(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            float lower,
+            float upper,
+            const idx_t* assign,
+            const float* centroid_dis,
+            float* distances,
+            idx_t* labels,
+            bool store_pairs,
+            const IVFSearchParameters* params = nullptr,
+            IndexIVFStats* stats = nullptr) const = 0;
+
     virtual ~IndexIVFInterface() {}
 };
 
@@ -278,11 +304,54 @@ struct IndexIVF : Index, IndexIVFInterface {
             bool store_pairs,
             const IVFSearchParameters* params = nullptr,
             IndexIVFStats* stats = nullptr) const override;
+    
+    void boundary_search_preassigned_v1(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            float lower,
+            float upper,
+            const idx_t* assign,
+            const float* centroid_dis,
+            float* distances,
+            idx_t* labels,
+            bool store_pairs,
+            const IVFSearchParameters* params = nullptr,
+            IndexIVFStats* stats = nullptr) const override;
+    
+    // void boundary_search_preassigned_v1(
+    //         idx_t n,
+    //         const float* x,
+    //         const float lower,
+    //         const float upper,
+    //         idx_t k,
+    //         const idx_t* assign,
+    //         const float* centroid_dis,
+    //         float* distances,
+    //         idx_t* labels,
+    //         bool store_pairs,
+    //         const IVFSearchParameters* params = nullptr,
+    //         IndexIVFStats* stats = nullptr) const override;
+
+
+
 
     void range_search_preassigned(
             idx_t nx,
             const float* x,
             float radius,
+            const idx_t* keys,
+            const float* coarse_dis,
+            RangeSearchResult* result,
+            bool store_pairs = false,
+            const IVFSearchParameters* params = nullptr,
+            IndexIVFStats* stats = nullptr) const override;
+    
+    void boundary_search_preassigned(
+            idx_t nx,
+            const float* x,
+            float lower,
+            float upper,
             const idx_t* keys,
             const float* coarse_dis,
             RangeSearchResult* result,
@@ -298,6 +367,16 @@ struct IndexIVF : Index, IndexIVFInterface {
             float* distances,
             idx_t* labels,
             const SearchParameters* params = nullptr) const override;
+    
+    void boundary_search_v1(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            const float lower,
+            const float upper,
+            float* distances,
+            idx_t* labels,
+            const SearchParameters* params = nullptr) const override;
 
     void range_search(
             idx_t n,
@@ -305,6 +384,21 @@ struct IndexIVF : Index, IndexIVFInterface {
             float radius,
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const override;
+    
+    void boundary_search(
+            idx_t n,
+            const float* x,
+            float lower,
+            float upper,
+            RangeSearchResult* result,
+            const SearchParameters* params = nullptr) const override;
+
+//     void boundary_search(
+//                 idx_t n,
+//                 const float* x,
+//                 float radius,
+//                 RangeSearchResult* result,
+//                 const SearchParameters* params = nullptr) const override;
 
     /** Get a scanner for this index (store_pairs means ignore labels)
      *
@@ -468,6 +562,16 @@ struct InvertedListScanner {
             float* distances,
             idx_t* labels,
             size_t k) const;
+    
+    virtual size_t scan_codes_boundary_v1(
+            size_t n,
+            const uint8_t* codes,
+            const idx_t* ids,
+            float* distances,
+            idx_t* labels,
+            size_t k,
+            const float lower,
+            const float upper) const;
 
     // same as scan_codes, using an iterator
     virtual size_t iterate_codes(
@@ -476,6 +580,15 @@ struct InvertedListScanner {
             idx_t* labels,
             size_t k,
             size_t& list_size) const;
+
+    virtual size_t iterate_codes_boundary_v1(
+            InvertedListsIterator* iterator,
+            float* distances,
+            idx_t* labels,
+            size_t k,
+            size_t& list_size,
+            const float lower,
+            const float upper) const;
 
     /** scan a set of codes, compute distances to current query and
      * update results if distances are below radius
@@ -487,11 +600,26 @@ struct InvertedListScanner {
             const idx_t* ids,
             float radius,
             RangeQueryResult& result) const;
+    
+    virtual void scan_codes_boundary(
+            size_t n,
+            const uint8_t* codes,
+            const idx_t* ids,
+            float lower,
+            float upper,
+            RangeQueryResult& result) const;
 
     // same as scan_codes_range, using an iterator
     virtual void iterate_codes_range(
             InvertedListsIterator* iterator,
             float radius,
+            RangeQueryResult& result,
+            size_t& list_size) const;
+
+    virtual void iterate_codes_boundary(
+            InvertedListsIterator* iterator,
+            float lower,
+            float upper,
             RangeQueryResult& result,
             size_t& list_size) const;
 

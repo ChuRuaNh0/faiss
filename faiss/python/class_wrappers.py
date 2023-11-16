@@ -343,6 +343,56 @@ def handle_Index(the_class):
         self.search_c(n, swig_ptr(x), k, swig_ptr(D), swig_ptr(I), params)
         return D, I
 
+
+    def replacement_search_boundary_v1(self, x, k, lower, upper, *, params=None, D=None, I=None):
+        """Find the k nearest neighbors of the set of vectors x in the index.
+
+        Parameters
+        ----------
+        x : array_like
+            Query vectors, shape (n, d) where d is appropriate for the index.
+            `dtype` must be float32.
+        k : int
+            Number of nearest neighbors.
+        params : SearchParameters
+            Search parameters of the current search (overrides the class-level params)
+        D : array_like, optional
+            Distance array to store the result.
+        I : array_like, optional
+            Labels array to store the results.
+
+        Returns
+        -------
+        D : array_like
+            Distances of the nearest neighbors, shape (n, k). When not enough results are found
+            the label is set to +Inf or -Inf.
+        I : array_like
+            Labels of the nearest neighbors, shape (n, k).
+            When not enough results are found, the label is set to -1
+        """
+
+        n, d = x.shape
+        x = np.ascontiguousarray(x, dtype='float32')
+        assert d == self.d
+
+        assert k > 0
+
+        if D is None:
+            D = np.empty((n, k), dtype=np.float32)
+        else:
+            assert D.shape == (n, k)
+
+        if I is None:
+            I = np.empty((n, k), dtype=np.int64)
+        else:
+            assert I.shape == (n, k)
+
+        self.boundary_search_v1_c(n, swig_ptr(x), k, lower, upper, swig_ptr(D), swig_ptr(I), params)
+        return D, I
+
+
+
+
     def replacement_search_and_reconstruct(self, x, k, *, params=None, D=None, I=None, R=None):
         """Find the k nearest neighbors of the set of vectors x in the index,
         and return an approximation of these vectors.
@@ -554,6 +604,51 @@ def handle_Index(the_class):
         D = rev_swig_ptr(res.distances, nd).copy()
         I = rev_swig_ptr(res.labels, nd).copy()
         return lims, D, I
+    
+    def replacement_boundary_search(self, x, lower, upper, *, params=None):
+        """Search vectors that are within a distance of the query vectors.
+
+        Parameters
+        ----------
+        x : array_like
+            Query vectors, shape (n, d) where d is appropriate for the index.
+            `dtype` must be float32.
+        thresh : float
+            Threshold to select neighbors. All elements within this radius are returned,
+            except for maximum inner product indexes, where the elements above the
+            threshold are returned
+        params : SearchParameters
+            Search parameters of the current search (overrides the class-level params)
+
+
+        Returns
+        -------
+        lims: array_like
+            Starting index of the results for each query vector, size n+1.
+        D : array_like
+            Distances of the nearest neighbors, shape `lims[n]`. The distances for
+            query i are in `D[lims[i]:lims[i+1]]`.
+        I : array_like
+            Labels of nearest neighbors, shape `lims[n]`. The labels for query i
+            are in `I[lims[i]:lims[i+1]]`.
+
+        """
+        n, d = x.shape
+        assert d == self.d
+        x = np.ascontiguousarray(x, dtype='float32')
+        lower = float(lower)
+        upper = float(upper)
+
+        res = RangeSearchResult(n)
+        # self.range_search_c(n, swig_ptr(x), thresh, res, params)
+        self.boundary_search_c(n, swig_ptr(x), lower, upper, res, params)
+        # get pointers and copy them
+        lims = rev_swig_ptr(res.lims, n + 1).copy()
+        nd = int(lims[-1])
+        D = rev_swig_ptr(res.distances, nd).copy()
+        I = rev_swig_ptr(res.labels, nd).copy()
+        return lims, D, I
+
 
     def replacement_search_preassigned(self, x, k, Iq, Dq, *, params=None, D=None, I=None):
         """Find the k nearest neighbors of the set of vectors x in an IVF index,
@@ -618,6 +713,75 @@ def handle_Index(the_class):
             False
         )
         return D, I
+
+
+    def replacement_search_preassigned_boundary_v1(self, x, k, lower, upper, Iq, Dq, *, params=None, D=None, I=None):
+        """Find the k nearest neighbors of the set of vectors x in an IVF index,
+        with precalculated coarse quantization assignment.
+
+        Parameters
+        ----------
+        x : array_like
+            Query vectors, shape (n, d) where d is appropriate for the index.
+            `dtype` must be float32.
+        k : int
+            Number of nearest neighbors.
+        Dq : array_like, optional
+            Distance array to the centroids, size (n, nprobe)
+        Iq : array_like, optional
+            Nearest centroids, size (n, nprobe)
+
+        params : SearchParameters
+            Search parameters of the current search (overrides the class-level params)
+        D : array_like, optional
+            Distance array to store the result.
+        I : array_like, optional
+            Labels array to store the results.
+
+        Returns
+        -------
+        D : array_like
+            Distances of the nearest neighbors, shape (n, k). When not enough results are found
+            the label is set to +Inf or -Inf.
+        I : array_like
+            Labels of the nearest neighbors, shape (n, k).
+            When not enough results are found, the label is set to -1
+        """
+        n, d = x.shape
+        x = np.ascontiguousarray(x, dtype='float32')
+        assert d == self.d
+        assert k > 0
+
+        if D is None:
+            D = np.empty((n, k), dtype=np.float32)
+        else:
+            assert D.shape == (n, k)
+
+        if I is None:
+            I = np.empty((n, k), dtype=np.int64)
+        else:
+            assert I.shape == (n, k)
+
+        Iq = np.ascontiguousarray(Iq, dtype='int64')
+        assert params is None, "params not supported"
+        assert Iq.shape == (n, self.nprobe)
+
+        if Dq is not None:
+            Dq = np.ascontiguousarray(Dq, dtype='float32')
+            assert Dq.shape == Iq.shape
+
+        self.boundary_search_preassigned_v1_c(
+            n, swig_ptr(x),
+            k,
+            lower,
+            upper,
+            swig_ptr(Iq), swig_ptr(Dq),
+            swig_ptr(D), swig_ptr(I),
+            False
+        )
+        return D, I
+
+
 
     def replacement_range_search_preassigned(self, x, thresh, Iq, Dq, *, params=None):
         """Search vectors that are within a distance of the query vectors.
@@ -724,12 +888,14 @@ def handle_Index(the_class):
     replace_method(the_class, 'assign', replacement_assign)
     replace_method(the_class, 'train', replacement_train)
     replace_method(the_class, 'search', replacement_search)
+    replace_method(the_class, 'boundary_search_v1', replacement_search_boundary_v1)
     replace_method(the_class, 'remove_ids', replacement_remove_ids)
     replace_method(the_class, 'reconstruct', replacement_reconstruct)
     replace_method(the_class, 'reconstruct_batch',
                    replacement_reconstruct_batch)
     replace_method(the_class, 'reconstruct_n', replacement_reconstruct_n)
     replace_method(the_class, 'range_search', replacement_range_search)
+    replace_method(the_class, 'boundary_search', replacement_boundary_search)
     replace_method(the_class, 'update_vectors', replacement_update_vectors,
                    ignore_missing=True)
     replace_method(the_class, 'search_and_reconstruct',
@@ -738,6 +904,8 @@ def handle_Index(the_class):
     # these ones are IVF-specific
     replace_method(the_class, 'search_preassigned',
                    replacement_search_preassigned, ignore_missing=True)
+    replace_method(the_class, 'boundary_search_preassigned_v1',
+                   replacement_search_preassigned_boundary_v1, ignore_missing=True)
     replace_method(the_class, 'range_search_preassigned',
                    replacement_range_search_preassigned, ignore_missing=True)
     replace_method(the_class, 'sa_encode', replacement_sa_encode)
@@ -811,6 +979,23 @@ def handle_IndexBinary(the_class):
                       k, swig_ptr(distances),
                       swig_ptr(labels))
         return distances, labels
+    
+    def replacement_search_boundary_v1(self, x, k, lower, upper):
+        x = _check_dtype_uint8(x)
+        n, d = x.shape
+        assert d == self.code_size
+        assert k > 0
+        distances = np.empty((n, k), dtype=np.int32)
+        labels = np.empty((n, k), dtype=np.int64)
+        self.boundary_search_v1_c(n, 
+                                swig_ptr(x),
+                                k, 
+                                lower, 
+                                upper, 
+                                swig_ptr(distances),
+                                swig_ptr(labels)
+                                )
+        return distances, labels
 
     def replacement_search_preassigned(self, x, k, Iq, Dq):
         n, d = x.shape
@@ -836,6 +1021,34 @@ def handle_IndexBinary(the_class):
             False
         )
         return D, I
+    
+    def replacement_search_preassigned_boundary_v1(self, x, k, lower, upper, Iq, Dq):
+        n, d = x.shape
+        x = _check_dtype_uint8(x)
+        assert d == self.code_size
+        assert k > 0
+
+        D = np.empty((n, k), dtype=np.int32)
+        I = np.empty((n, k), dtype=np.int64)
+
+        Iq = np.ascontiguousarray(Iq, dtype='int64')
+        assert Iq.shape == (n, self.nprobe)
+
+        if Dq is not None:
+            Dq = np.ascontiguousarray(Dq, dtype='int32')
+            assert Dq.shape == Iq.shape
+
+        self.boundary_search_preassigned_v1_c(
+            n, 
+            swig_ptr(x),
+            k,
+            lower,
+            upper,
+            swig_ptr(Iq), swig_ptr(Dq),
+            swig_ptr(D), swig_ptr(I),
+            False
+        )
+        return D, I
 
     def replacement_range_search(self, x, thresh):
         n, d = x.shape
@@ -843,6 +1056,19 @@ def handle_IndexBinary(the_class):
         assert d == self.code_size
         res = RangeSearchResult(n)
         self.range_search_c(n, swig_ptr(x), thresh, res)
+        # get pointers and copy them
+        lims = rev_swig_ptr(res.lims, n + 1).copy()
+        nd = int(lims[-1])
+        D = rev_swig_ptr(res.distances, nd).copy()
+        I = rev_swig_ptr(res.labels, nd).copy()
+        return lims, D, I
+    
+    def replacement_boundary_search(self, x, lower, upper):
+        n, d = x.shape
+        x = _check_dtype_uint8(x)
+        assert d == self.code_size
+        res = RangeSearchResult(n)
+        self.range_search_c(n, swig_ptr(x), lower, upper, res)
         # get pointers and copy them
         lims = rev_swig_ptr(res.lims, n + 1).copy()
         nd = int(lims[-1])
@@ -876,6 +1102,34 @@ def handle_IndexBinary(the_class):
         D = rev_swig_ptr(res.distances, nd).copy()
         I = rev_swig_ptr(res.labels, nd).copy()
         return lims, D, I
+    
+    def replacement_boundary_search_preassigned(self, x, lower, upper, Iq, Dq, *, params=None):
+        n, d = x.shape
+        x = _check_dtype_uint8(x)
+        assert d == self.code_size
+
+        Iq = np.ascontiguousarray(Iq, dtype='int64')
+        assert params is None, "params not supported"
+        assert Iq.shape == (n, self.nprobe)
+
+        if Dq is not None:
+            Dq = np.ascontiguousarray(Dq, dtype='int32')
+            assert Dq.shape == Iq.shape
+
+        lower = int(lower)
+        upper = int(upper)
+        res = RangeSearchResult(n)
+        self.range_search_preassigned_c(
+            n, swig_ptr(x), lower, upper,
+            swig_ptr(Iq), swig_ptr(Dq),
+            res
+        )
+        # get pointers and copy them
+        lims = rev_swig_ptr(res.lims, n + 1).copy()
+        nd = int(lims[-1])
+        D = rev_swig_ptr(res.distances, nd).copy()
+        I = rev_swig_ptr(res.labels, nd).copy()
+        return lims, D, I
 
     def replacement_remove_ids(self, x):
         if isinstance(x, IDSelector):
@@ -890,14 +1144,22 @@ def handle_IndexBinary(the_class):
     replace_method(the_class, 'add_with_ids', replacement_add_with_ids)
     replace_method(the_class, 'train', replacement_train)
     replace_method(the_class, 'search', replacement_search)
+    replace_method(the_class, 'boundary_search_v1', replacement_search_boundary_v1)
     replace_method(the_class, 'range_search', replacement_range_search)
+    replace_method(the_class, 'boundary_search', replacement_boundary_search)
     replace_method(the_class, 'reconstruct', replacement_reconstruct)
     replace_method(the_class, 'reconstruct_n', replacement_reconstruct_n)
     replace_method(the_class, 'remove_ids', replacement_remove_ids)
     replace_method(the_class, 'search_preassigned',
                    replacement_search_preassigned, ignore_missing=True)
+    
+    replace_method(the_class, 'boundary_search_preassigned_v1',
+                   replacement_search_preassigned_boundary_v1, ignore_missing=True)
+    
     replace_method(the_class, 'range_search_preassigned',
                    replacement_range_search_preassigned, ignore_missing=True)
+    replace_method(the_class, 'boundary_search_preassigned',
+                   replacement_boundary_search_preassigned, ignore_missing=True)
 
 
 def handle_VectorTransform(the_class):

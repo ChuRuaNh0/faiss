@@ -129,6 +129,39 @@ void IndexLSH::search(
         distances[i] = idistances[i];
 }
 
+void IndexLSH::boundary_search_v1(
+        idx_t n,
+        const float* x,
+        idx_t k,
+        const float lower,
+        const float upper,
+        float* distances,
+        idx_t* labels,
+        const SearchParameters* params) const {
+    FAISS_THROW_IF_NOT_MSG(
+            !params, "search params not supported for this index");
+    FAISS_THROW_IF_NOT(k > 0);
+    FAISS_THROW_IF_NOT(is_trained);
+    const float* xt = apply_preprocess(n, x);
+    ScopeDeleter<float> del(xt == x ? nullptr : xt);
+
+    uint8_t* qcodes = new uint8_t[n * code_size];
+    ScopeDeleter<uint8_t> del2(qcodes);
+
+    fvecs2bitvecs(xt, qcodes, nbits, n);
+
+    int* idistances = new int[n * k];
+    ScopeDeleter<int> del3(idistances);
+
+    int_maxheap_array_t res = {size_t(n), size_t(k), labels, idistances};
+
+    hammings_knn_hc(&res, qcodes, codes.data(), ntotal, code_size, true);
+
+    // convert distances to floats
+    for (int i = 0; i < k * n; i++)
+        distances[i] = idistances[i];
+}
+
 void IndexLSH::transfer_thresholds(LinearTransform* vt) {
     if (!train_thresholds)
         return;

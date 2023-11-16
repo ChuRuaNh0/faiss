@@ -281,6 +281,66 @@ void IndexAdditiveQuantizer::search(
     }
 }
 
+
+// void IndexAdditiveQuantizer::boundary_search_v1(
+//         idx_t n,
+//         const float* x,
+//         idx_t k,
+//         float lower,
+//         float upper,
+//         float* distances,
+//         idx_t* labels,
+//         const SearchParameters* params) const {
+//     FAISS_THROW_IF_NOT_MSG(
+//             !params, "search params not supported for this index");
+
+//     if (aq->search_type == AdditiveQuantizer::ST_decompress) {
+//         if (metric_type == METRIC_L2) {
+//             using VD = VectorDistance<METRIC_L2>;
+//             VD vd = {size_t(d), metric_arg};
+//             HeapResultHandler<VD::C> rh(n, distances, labels, k);
+//             search_with_decompress(*this, x, vd, rh);
+//         } else if (metric_type == METRIC_INNER_PRODUCT) {
+//             using VD = VectorDistance<METRIC_INNER_PRODUCT>;
+//             VD vd = {size_t(d), metric_arg};
+//             HeapResultHandler<VD::C> rh(n, distances, labels, k);
+//             search_with_decompress(*this, x, vd, rh);
+//         }
+//     } else {
+//         if (metric_type == METRIC_INNER_PRODUCT) {
+//             HeapResultHandler<CMin<float, idx_t>> rh(n, distances, labels, k);
+//             search_with_LUT<true, AdditiveQuantizer::ST_LUT_nonorm>(
+//                     *this, x, rh);
+//         } else {
+//             HeapResultHandler<CMax<float, idx_t>> rh(n, distances, labels, k);
+//             switch (aq->search_type) {
+// #define DISPATCH(st)                                                 \
+//     case AdditiveQuantizer::st:                                      \
+//         search_with_LUT<false, AdditiveQuantizer::st>(*this, x, rh); \
+//         break;
+//                 DISPATCH(ST_norm_float)
+//                 DISPATCH(ST_LUT_nonorm)
+//                 DISPATCH(ST_norm_qint8)
+//                 DISPATCH(ST_norm_qint4)
+//                 DISPATCH(ST_norm_cqint4)
+//                 case AdditiveQuantizer::ST_norm_cqint8:
+//                 case AdditiveQuantizer::ST_norm_lsq2x4:
+//                 case AdditiveQuantizer::ST_norm_rq2x4:
+//                     search_with_LUT<false, AdditiveQuantizer::ST_norm_cqint8>(
+//                             *this, x, rh);
+//                     break;
+// #undef DISPATCH
+//                 default:
+//                     FAISS_THROW_FMT(
+//                             "search type %d not supported", aq->search_type);
+//             }
+//         }
+//     }
+// }
+
+
+
+
 void IndexAdditiveQuantizer::sa_encode(idx_t n, const float* x, uint8_t* bytes)
         const {
     return aq->compute_codes(x, bytes, n);
@@ -596,6 +656,97 @@ void ResidualCoarseQuantizer::search(
         }
     }
 }
+
+
+
+// void ResidualCoarseQuantizer::boundary_search_v1(
+//         idx_t n,
+//         const float* x,
+//         idx_t k,
+//         float lower,
+//         float upper,
+//         float* distances,
+//         idx_t* labels,
+//         const SearchParameters* params_in) const {
+//     float beam_factor = this->beam_factor;
+//     if (params_in) {
+//         auto params =
+//                 dynamic_cast<const SearchParametersResidualCoarseQuantizer*>(
+//                         params_in);
+//         FAISS_THROW_IF_NOT_MSG(
+//                 params,
+//                 "need SearchParametersResidualCoarseQuantizer parameters");
+//         beam_factor = params->beam_factor;
+//     }
+
+//     if (beam_factor < 0) {
+//         AdditiveCoarseQuantizer::boundary_search_v1(n, x, k, lower, upper, distances, labels);
+//         return;
+//     }
+
+//     int beam_size = int(k * beam_factor);
+//     if (beam_size > ntotal) {
+//         beam_size = ntotal;
+//     }
+//     size_t memory_per_point = rq.memory_per_point(beam_size);
+
+//     /*
+
+//     printf("mem per point %ld n=%d max_mem_distance=%ld mem_kb=%zd\n",
+//         memory_per_point, int(n), rq.max_mem_distances, get_mem_usage_kb());
+//     */
+//     if (n > 1 && memory_per_point * n > rq.max_mem_distances) {
+//         // then split queries to reduce temp memory
+//         idx_t bs = rq.max_mem_distances / memory_per_point;
+//         if (bs == 0) {
+//             bs = 1; // otherwise we can't do much
+//         }
+//         if (verbose) {
+//             printf("ResidualCoarseQuantizer::search: run %d searches in batches of size %d\n",
+//                    int(n),
+//                    int(bs));
+//         }
+//         for (idx_t i0 = 0; i0 < n; i0 += bs) {
+//             idx_t i1 = std::min(n, i0 + bs);
+//             boundary_search_v1(i1 - i0,
+//                    x + i0 * d,
+//                    k,
+//                    lower,
+//                    upper,
+//                    distances + i0 * k,
+//                    labels + i0 * k,
+//                    params_in);
+//             InterruptCallback::check();
+//         }
+//         return;
+//     }
+
+//     std::vector<int32_t> codes(beam_size * rq.M * n);
+//     std::vector<float> beam_distances(n * beam_size);
+
+//     rq.refine_beam(
+//             n, 1, x, beam_size, codes.data(), nullptr, beam_distances.data());
+
+//     // pack int32 table
+// #pragma omp parallel for if (n > 4000)
+//     for (idx_t i = 0; i < n; i++) {
+//         memcpy(distances + i * k,
+//                beam_distances.data() + beam_size * i,
+//                k * sizeof(distances[0]));
+
+//         const int32_t* codes_i = codes.data() + beam_size * i * rq.M;
+//         for (idx_t j = 0; j < k; j++) {
+//             idx_t l = 0;
+//             int shift = 0;
+//             for (int m = 0; m < rq.M; m++) {
+//                 l |= (*codes_i++) << shift;
+//                 shift += rq.nbits[m];
+//             }
+//             labels[i * k + j] = l;
+//         }
+//     }
+// }
+
 
 void ResidualCoarseQuantizer::initialize_from(
         const ResidualCoarseQuantizer& other) {

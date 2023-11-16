@@ -9,7 +9,7 @@
 
 #include <algorithm>
 #include <cstring>
-
+#include <iostream>
 #include <faiss/impl/AuxIndexStructures.h>
 
 #include <faiss/impl/FaissAssert.h>
@@ -37,6 +37,7 @@ RangeSearchResult::RangeSearchResult(size_t nq, bool alloc_lims) : nq(nq) {
 void RangeSearchResult::do_allocation() {
     // works only if all the partial results are aggregated
     // simulatenously
+    std::cout << labels << std::endl;
     FAISS_THROW_IF_NOT(labels == nullptr && distances == nullptr);
     size_t ofs = 0;
     for (int i = 0; i < nq; i++) {

@@ -108,6 +108,24 @@ struct IndexBinary {
             int radius,
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const;
+    
+    virtual void boundary_search(
+            idx_t n,
+            const uint8_t* x,
+            float lower,
+            float upper,
+            RangeSearchResult* result,
+            const SearchParameters* params = nullptr) const;
+    
+     virtual void boundary_search_v1(
+            idx_t n,
+            const uint8_t* x,
+            idx_t k,
+            const float lower,
+            const float upper,
+            int32_t* distances,
+            idx_t* labels,
+            const SearchParameters* params = nullptr) const;
 
     /** Return the indexes of the k vectors closest to the query x.
      *

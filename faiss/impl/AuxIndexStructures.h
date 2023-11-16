@@ -33,7 +33,7 @@ struct RangeSearchResult {
 
     idx_t* labels;    ///< result for query i is labels[lims[i]:lims[i+1]]
     float* distances; ///< corresponding distances (not sorted)
-
+    
     size_t buffer_size; ///< size of the result buffers used
 
     /// lims must be allocated on input to range_search.

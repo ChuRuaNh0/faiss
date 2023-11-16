@@ -133,6 +133,30 @@ struct Index {
             float* distances,
             idx_t* labels,
             const SearchParameters* params = nullptr) const = 0;
+    
+    virtual void boundary_search_v1(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            const float lower,
+            const float upper,
+            float* distances,
+            idx_t* labels,
+            const SearchParameters* params = nullptr) const;
+
+    // virtual void boundary_search_preassigned_v1(
+    //         idx_t n,
+    //         const float* x,
+    //         const float lower,
+    //         const float upper,
+    //         idx_t k,
+    //         const idx_t* assign,
+    //         const float* centroid_dis,
+    //         float* distances,
+    //         idx_t* labels,
+    //         bool store_pairs,
+    //         const IVFSearchParameters* params = nullptr,
+    //         IndexIVFStats* stats = nullptr) const;
 
     /** query n vectors of dimension d to the index.
      *
@@ -149,6 +173,14 @@ struct Index {
             idx_t n,
             const float* x,
             float radius,
+            RangeSearchResult* result,
+            const SearchParameters* params = nullptr) const;
+    
+    virtual void boundary_search(
+            idx_t n,
+            const float* x,
+            float lower,
+            float upper,
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const;
 

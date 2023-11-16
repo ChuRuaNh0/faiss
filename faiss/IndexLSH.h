@@ -51,6 +51,16 @@ struct IndexLSH : IndexFlatCodes {
             float* distances,
             idx_t* labels,
             const SearchParameters* params = nullptr) const override;
+    
+    void boundary_search_v1(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            const float lower,
+            const float upper,
+            float* distances,
+            idx_t* labels,
+            const SearchParameters* params = nullptr) const override;
 
     /// transfer the thresholds to a pre-processing stage (and unset
     /// train_thresholds)
