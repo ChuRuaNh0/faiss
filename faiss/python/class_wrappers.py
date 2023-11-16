@@ -344,7 +344,7 @@ def handle_Index(the_class):
         return D, I
 
 
-    def replacement_search_boundary_v1(self, x, k, lower, upper, *, params=None, D=None, I=None):
+    def replacement_search_boundary(self, x, k, lower, upper, *, params=None, D=None, I=None):
         """Find the k nearest neighbors of the set of vectors x in the index.
 
         Parameters
@@ -715,7 +715,7 @@ def handle_Index(the_class):
         return D, I
 
 
-    def replacement_search_preassigned_boundary_v1(self, x, k, lower, upper, Iq, Dq, *, params=None, D=None, I=None):
+    def replacement_search_preassigned_boundary(self, x, k, lower, upper, Iq, Dq, *, params=None, D=None, I=None):
         """Find the k nearest neighbors of the set of vectors x in an IVF index,
         with precalculated coarse quantization assignment.
 
@@ -888,7 +888,7 @@ def handle_Index(the_class):
     replace_method(the_class, 'assign', replacement_assign)
     replace_method(the_class, 'train', replacement_train)
     replace_method(the_class, 'search', replacement_search)
-    replace_method(the_class, 'boundary_search_v1', replacement_search_boundary_v1)
+    replace_method(the_class, 'boundary_search_v1', replacement_search_boundary)
     replace_method(the_class, 'remove_ids', replacement_remove_ids)
     replace_method(the_class, 'reconstruct', replacement_reconstruct)
     replace_method(the_class, 'reconstruct_batch',
@@ -904,8 +904,8 @@ def handle_Index(the_class):
     # these ones are IVF-specific
     replace_method(the_class, 'search_preassigned',
                    replacement_search_preassigned, ignore_missing=True)
-    replace_method(the_class, 'boundary_search_preassigned_v1',
-                   replacement_search_preassigned_boundary_v1, ignore_missing=True)
+    # replace_method(the_class, 'boundary_search_preassigned_v1',
+    #                replacement_search_preassigned_boundary_v1, ignore_missing=True)
     replace_method(the_class, 'range_search_preassigned',
                    replacement_range_search_preassigned, ignore_missing=True)
     replace_method(the_class, 'sa_encode', replacement_sa_encode)
@@ -980,7 +980,7 @@ def handle_IndexBinary(the_class):
                       swig_ptr(labels))
         return distances, labels
     
-    def replacement_search_boundary_v1(self, x, k, lower, upper):
+    def replacement_search_boundary(self, x, k, lower, upper):
         x = _check_dtype_uint8(x)
         n, d = x.shape
         assert d == self.code_size
@@ -1022,7 +1022,7 @@ def handle_IndexBinary(the_class):
         )
         return D, I
     
-    def replacement_search_preassigned_boundary_v1(self, x, k, lower, upper, Iq, Dq):
+    def replacement_search_preassigned_boundary(self, x, k, lower, upper, Iq, Dq):
         n, d = x.shape
         x = _check_dtype_uint8(x)
         assert d == self.code_size
@@ -1144,7 +1144,7 @@ def handle_IndexBinary(the_class):
     replace_method(the_class, 'add_with_ids', replacement_add_with_ids)
     replace_method(the_class, 'train', replacement_train)
     replace_method(the_class, 'search', replacement_search)
-    replace_method(the_class, 'boundary_search_v1', replacement_search_boundary_v1)
+    replace_method(the_class, 'boundary_search_v1', replacement_search_boundary)
     replace_method(the_class, 'range_search', replacement_range_search)
     replace_method(the_class, 'boundary_search', replacement_boundary_search)
     replace_method(the_class, 'reconstruct', replacement_reconstruct)
@@ -1153,8 +1153,8 @@ def handle_IndexBinary(the_class):
     replace_method(the_class, 'search_preassigned',
                    replacement_search_preassigned, ignore_missing=True)
     
-    replace_method(the_class, 'boundary_search_preassigned_v1',
-                   replacement_search_preassigned_boundary_v1, ignore_missing=True)
+    # replace_method(the_class, 'boundary_search_preassigned_v1',
+    #                replacement_search_preassigned_boundary, ignore_missing=True)
     
     replace_method(the_class, 'range_search_preassigned',
                    replacement_range_search_preassigned, ignore_missing=True)

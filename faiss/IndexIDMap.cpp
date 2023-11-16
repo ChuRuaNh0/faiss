@@ -140,6 +140,43 @@ void IndexIDMapTemplate<IndexT>::search(
 }
 
 template <typename IndexT>
+void IndexIDMapTemplate<IndexT>::boundary_search_v1(
+        idx_t n,
+        const typename IndexT::component_t* x,
+        idx_t k,
+        float lower,
+        float upper,
+        typename IndexT::distance_t* distances,
+        idx_t* labels,
+        const SearchParameters* params) const {
+    IDSelectorTranslated this_idtrans(this->id_map, nullptr);
+    ScopedSelChange sel_change;
+
+    if (params && params->sel) {
+        auto idtrans = dynamic_cast<const IDSelectorTranslated*>(params->sel);
+
+        if (!idtrans) {
+            /*
+            FAISS_THROW_IF_NOT_MSG(
+                    idtrans,
+                    "IndexIDMap requires an IDSelectorTranslated on input");
+            */
+            // then make an idtrans and force it into the SearchParameters
+            // (hence the const_cast)
+            auto params_non_const = const_cast<SearchParameters*>(params);
+            this_idtrans.sel = params->sel;
+            sel_change.set(params_non_const, &this_idtrans);
+        }
+    }
+    index->search(n, x, k, distances, labels, params);
+    idx_t* li = labels;
+#pragma omp parallel for
+    for (idx_t i = 0; i < n * k; i++) {
+        li[i] = li[i] < 0 ? li[i] : id_map[li[i]];
+    }
+}
+
+template <typename IndexT>
 void IndexIDMapTemplate<IndexT>::range_search(
         idx_t n,
         const typename IndexT::component_t* x,
@@ -149,6 +186,25 @@ void IndexIDMapTemplate<IndexT>::range_search(
     FAISS_THROW_IF_NOT_MSG(
             !params, "search params not supported for this index");
     index->range_search(n, x, radius, result);
+#pragma omp parallel for
+    for (idx_t i = 0; i < result->lims[result->nq]; i++) {
+        result->labels[i] = result->labels[i] < 0 ? result->labels[i]
+                                                  : id_map[result->labels[i]];
+    }
+}
+
+
+template <typename IndexT>
+void IndexIDMapTemplate<IndexT>::boundary_search(
+        idx_t n,
+        const typename IndexT::component_t* x,
+        float lower,
+        float upper,
+        RangeSearchResult* result,
+        const SearchParameters* params) const {
+    FAISS_THROW_IF_NOT_MSG(
+            !params, "search params not supported for this index");
+    index->boundary_search(n, x, lower, upper, result);
 #pragma omp parallel for
     for (idx_t i = 0; i < result->lims[result->nq]; i++) {
         result->labels[i] = result->labels[i] < 0 ? result->labels[i]
